@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sapphirebet's Keno Machine</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #282c34; /* Custom background color */
+            color: #61dafb; /* Custom text color */
+            margin: 0; /* Remove default margin */
+            padding: 20px; /* Add padding for better spacing */
+        }
+        h1 {
+            font-family: 'Rockwell', 'Georgia', serif; /* Use Rockwell with Georgia as a fallback */
+            font-size: 2.5em; /* Adjust size as needed */
+        }
+        table {
+            border-collapse: collapse;
+            margin: 20px auto;
+            background-color: #3c3f41; /* Table background */
+            width: 100%; /* Make the table responsive */
+            max-width: 600px; /* Limit maximum width */
+        }
+        th, td {
+            border: 2px solid #444; /* Increased border thickness */
+            width: 60px; /* Boxier look */
+            height: 60px; /* Boxier look */
+            text-align: center;
+            cursor: pointer;
+            color: #ffffff; /* Light text */
+        }
+        .selected {
+            background-color: #50C878; /* Bright emerald green color */
+            color: white;
+        }
+        .form-container {
+            display: none; /* Initially hidden until red splash is acknowledged */
+            flex-direction: column; /* Stack fields vertically by default */
+            align-items: center;
+            margin-top: 20px;
+        }
+        .form-fields {
+            display: flex; /* Side by side on larger screens */
+            justify-content: center; /* Center the fields */
+            gap: 10px; /* Space between fields */
+            margin-bottom: 10px; /* Space below fields */
+            flex-wrap: wrap; /* Wrap fields on smaller screens */
+        }
+        .form-container label, .form-container input {
+            color: #ffffff; /* Light text */
+        }
+        input {
+            background-color: #2a2a2a; /* Dark input background */
+            color: #ffffff; /* Light text */
+            border: 1px solid #444; /* Light border */
+            padding: 10px;
+            width: 100%; /* Full-width input fields */
+            max-width: 150px; /* Limit input width */
+        }
+        #message {
+            margin: 10px;
+            font-weight: bold;
+            color: #ffffff; /* Light text */
+        }
+        #entryList {
+            margin-top: 20px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        #entryList table {
+            width: 100%;
+            background-color: #3c3f41; /* Darker background for entry list */
+        }
+        #entryList th, #entryList td {
+            color: #ffffff; /* Light text for entry list */
+            border: 1px solid #444; /* Light border */
+        }
+        #splashMessage {
+            display: none; /* Hidden by default */
+            background-color: rgba(0, 128, 0, 0.8); /* Semi-transparent green background */
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px auto;
+            max-width: 400px;
+            font-size: 1.5em;
+            transition: opacity 0.5s; /* Fade-in effect */
+        }
+        #redSplashMessage {
+            display: block; /* Visible by default */
+            background-color: rgba(255, 0, 0, 0.8); /* Semi-transparent red background */
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px auto;
+            max-width: 400px;
+            font-size: 1.5em;
+            transition: opacity 0.5s; /* Fade-in effect */
+        }
+        @media (max-width: 600px) {
+            .form-fields {
+                flex-direction: column; /* Stack fields on mobile */
+                align-items: center; /* Center fields */
+            }
+            th, td {
+                width: 40px; /* Adjust grid size for mobile */
+                height: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Sapphirebet's Keno Machine</h1>
+
+    <!-- Red Splash Message -->
+    <div id="redSplashMessage">Multiple entries will be disqualified and shamed. <button onclick="acknowledgeRedSplash()">Acknowledge</button></div>
+
+    <!-- Number grid -->
+    <table id="numberGrid">
+        <tbody>
+            <script>
+                let number = 1; // Start from 1
+                for (let i = 0; i < 5; i++) { // 5 rows
+                    document.write('<tr>');
+                    for (let j = 0; j < 8; j++) { // 8 columns
+                        document.write(`<td onclick="toggleNumber(${number})">${number}</td>`);
+                        number++;
+                    }
+                    document.write('</tr>');
+                }
+            </script>
+        </tbody>
+    </table>
+
+    <div id="message"></div>
+
+    <!-- User entry form -->
+    <div class="form-container">
+        <form id="entryForm" onsubmit="submitEntry(event)">
+            <div class="form-fields">
+                <div>
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" maxlength="20" required oninput="validateInput(this)">
+                </div>
+                <div>
+                    <label for="stakeUsername">Stake Username:</label>
+                    <input type="text" id="stakeUsername" maxlength="36" required oninput="validateInput(this)">
+                </div>
+            </div>
+            <button id="submitEntryButton" type="submit" disabled>Submit Entry</button>
+        </form>
+        <p style="color: #ffffff;">If you do not have a Stake ID, please enter your LTC Address.</p>
+    </div>
+
+    <!-- Entries list -->
+    <div id="entryList">
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Stake Username</th>
+                    <th>Numbers Selected</th>
+                </tr>
+            </thead>
+            <tbody id="entryTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Splash Message -->
+    <div id="splashMessage">You're in! Good Luck! You may now close this page.</div>
+
+    <script>
+        const maxNumbers = 10; // Maximum numbers allowed
+        let hasSubmitted = false; // Track if the user has submitted
+
+        function toggleNumber(number) {
+            if (hasSubmitted) {
+                alert("You have already submitted your entry. You cannot select more numbers.");
+                return;
+            }
+
+            const cellIndex = number - 1; // Correct index for selected number
+            const cellElement = document.querySelectorAll('#numberGrid td')[cellIndex];
+
+            if (cellElement) {
+                if (cellElement.classList.contains('selected')) {
+                    // Deselect if already selected
+                    cellElement.classList.remove('selected');
+                } else {
+                    // Check if the limit is reached
+                    if (document.querySelectorAll('.selected').length < maxNumbers) {
+                        // Select the number
+                        cellElement.classList.add('selected');
+                    } else {
+                        alert(`You can only select up to ${maxNumbers} numbers.`);
+                    }
+                }
+            }
+        }
+
+        function validateInput(input) {
+            // Remove special characters
+            input.value = input.value.replace(/[^a-zA-Z0-9]/g, '');
+        }
+
+        function acknowledgeRedSplash() {
+            document.getElementById('redSplashMessage').style.display = 'none'; // Hide the red splash message
+            document.querySelector('.form-container').style.display = 'flex'; // Show the form container
+            document.getElementById('submitEntryButton').disabled = false; // Enable the submit button
+        }
+
+        function submitEntry(event) {
+            event.preventDefault();
+
+            // Check if user has already submitted
+            if (hasSubmitted) {
+                alert("You have already submitted your entry.");
+                return;
+            }
+
+            const username = document.getElementById('username').value;
+            const stakeUsername = document.getElementById('stakeUsername').value;
+            const selectedNumbers = Array.from(document.querySelectorAll('.selected')).map(cell => cell.innerText).join(', ');
+
+            // Check if the user selected exactly 10 numbers
+            if (document.querySelectorAll('.selected').length !== maxNumbers) {
+                alert(`You must select exactly ${maxNumbers} numbers before submitting.`);
+                return;
+            }
+
+            // Your Apps Script URL
+            const scriptURL = 'https://script.google.com/macros/s/AKfycby632SSeW_4Z9xqySlIfmDfssjBzrU3KWlrV4YrGjfk48Ahx7GOv14D5_LLmpglyC3pBQ/exec';
+
+            // Disable the submit button to prevent multiple submissions
+            document.getElementById('submitEntryButton').disabled = true;
+
+            fetch(scriptURL, {
+                method: 'POST',
+                body: new URLSearchParams({
+                    username: username,
+                    stakeUsername: stakeUsername,
+                    selectedNumbers: selectedNumbers
+                }),
+            })
+            .then(response => {
+                if (response.ok) {
+                    hasSubmitted = true; // Mark as submitted
+                    document.getElementById('splashMessage').style.display = 'block'; // Show the success message
+                    setTimeout(() => {
+                        document.getElementById('splashMessage').style.display = 'none'; // Hide the splash message after 10 seconds
+                    }, 10000);
+                    // Add the entry to the list
+                    const entryRow = document.createElement('tr');
+                    entryRow.innerHTML = `<td>${username}</td><td>${stakeUsername}</td><td>${selectedNumbers}</td>`;
+                    document.getElementById('entryTableBody').appendChild(entryRow);
+                } else {
+                    alert('There was an error submitting your entry. Please try again.');
+                    // Re-enable the button in case of error
+                    document.getElementById('submitEntryButton').disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('There was an error submitting your entry. Please try again.');
+                // Re-enable the button in case of error
+                document.getElementById('submitEntryButton').disabled = false;
+            });
+        }
+    </script>
+</body>
+</html>
